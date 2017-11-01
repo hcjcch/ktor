@@ -1,12 +1,13 @@
 package io.ktor.client
 
-import io.ktor.cio.*
 import io.ktor.client.call.*
 import io.ktor.client.response.*
 import io.ktor.client.utils.*
+import io.ktor.network.util.*
+import kotlinx.coroutines.experimental.io.*
 import kotlinx.io.pool.*
 import java.io.*
-import java.nio.*
+import java.nio.ByteBuffer
 import java.nio.charset.*
 
 
@@ -22,13 +23,7 @@ suspend fun HttpResponse.readText(charset: Charset): String = receive()
 
 suspend fun HttpResponse.readBytes(count: Int): ByteArray {
     val result = ByteArray(count)
-    val buffer = ByteBuffer.wrap(result)
-    val channel = bodyChannel
-
-    while (buffer.hasRemaining()) {
-        if (channel.read(buffer) < 0) error("Unexpected EOF, ${buffer.remaining()} remaining of $count")
-    }
-
+    bodyChannel.readFully(result)
     return result
 }
 
@@ -39,7 +34,7 @@ suspend fun HttpResponse.readBytes(): ByteArray {
 
     while (true) {
         buffer.clear()
-        val count = channel.read(buffer)
+        val count = channel.readAvailable(buffer)
         if (count == -1) break
         buffer.flip()
 
@@ -56,7 +51,7 @@ suspend fun HttpResponse.discardRemaining() {
 
     while (true) {
         buffer.clear()
-        if (channel.read(buffer) == -1) break
+        if (channel.readAvailable(buffer) == -1) break
     }
 
     ResponsePool.recycle(buffer)
@@ -69,9 +64,20 @@ private object EmptyInputStream : InputStream() {
 val HttpResponse.bodyStream: InputStream
     get() = when (body) {
         is EmptyBody -> EmptyInputStream
-        is InputStreamBody -> body.stream
-        is OutputStreamBody -> ByteArrayOutputStream().apply(body.block).toByteArray().inputStream()
+        is ByteReadChannelBody,
+        is ByteWriteChannelBody -> bodyChannel.toInputStream()
         else -> error("Body has been already processed by some feature: $body")
     }
 
-val HttpResponse.bodyChannel: ReadChannel get() = bodyStream.toReadChannel()
+val HttpResponse.bodyChannel: ByteReadChannel
+    get() = when (body) {
+        is EmptyBody -> EmptyByteReadChannel
+        is ByteReadChannelBody -> body.channel
+        is ByteWriteChannelBody -> {
+            writer(ioCoroutineDispatcher, ByteChannel()) {
+                body.block(channel)
+            }.channel
+        }
+        else -> error("Body has been already processed by some feature: $body")
+    }
+

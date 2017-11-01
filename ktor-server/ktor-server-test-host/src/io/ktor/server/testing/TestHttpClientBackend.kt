@@ -16,8 +16,8 @@ class TestHttpClientBackend(val app: TestApplicationEngine) : HttpClientBackend 
         val charset = request.charset() ?: Charsets.UTF_8
 
         val bodyStream = when (requestBody) {
-            is InputStreamBody -> InputStreamReader(requestBody.stream, charset).readText()
-            is OutputStreamBody -> {
+            is ByteReadChannelBody -> InputStreamReader(requestBody.channel, charset).readText()
+            is ByteWriteChannelBody -> {
                 val stream = ByteArrayOutputStream()
                 requestBody.block(stream)
                 stream.toString(charset.name())
@@ -40,7 +40,7 @@ class TestHttpClientBackend(val app: TestApplicationEngine) : HttpClientBackend 
         responseTime = Date()
 
         headers.appendAll(call.response.headers.allValues())
-        body = call.response.byteContent?.let { InputStreamBody(ByteArrayInputStream(it)) } ?: EmptyBody
+        body = call.response.byteContent?.let { ByteReadChannelBody(ByteArrayInputStream(it)) } ?: EmptyBody
     }
 
     override fun close() {

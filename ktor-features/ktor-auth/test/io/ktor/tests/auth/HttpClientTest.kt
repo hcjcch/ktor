@@ -62,7 +62,7 @@ class HttpClientTest {
             method = HttpMethod.Post
             url.path = "/url"
             header("header", "value")
-            body = OutputStreamBody { out ->
+            body = ByteWriteChannelBody { out ->
                 out.writer().use { w ->
                     w.write("request-body")
                 }

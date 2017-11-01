@@ -17,7 +17,6 @@ import io.ktor.util.*
 import kotlinx.coroutines.experimental.*
 import kotlinx.coroutines.experimental.io.*
 import kotlinx.io.streams.*
-import org.junit.*
 import org.junit.Test
 import org.junit.runners.model.*
 import org.slf4j.*
@@ -146,7 +145,7 @@ abstract class EngineTestSuite<TEngine : ApplicationEngine, TConfiguration : App
         withUrl("/", {
             method = HttpMethod.Post
             header(HttpHeaders.ContentType, ContentType.Application.FormUrlEncoded.toString())
-            body = OutputStreamBody {
+            body = ByteWriteChannelBody {
                 it.bufferedWriter().use {
                     valuesOf("a" to listOf("1")).formUrlEncodeTo(it)
                 }
@@ -505,7 +504,7 @@ abstract class EngineTestSuite<TEngine : ApplicationEngine, TConfiguration : App
         withUrl("/?urlp=1", {
             method = HttpMethod.Post
             header(HttpHeaders.ContentType, ContentType.Application.FormUrlEncoded.toString())
-            body = OutputStreamBody {
+            body = ByteWriteChannelBody {
                 it.write("formp=2".toByteArray())
             }
         }) {
@@ -533,7 +532,7 @@ abstract class EngineTestSuite<TEngine : ApplicationEngine, TConfiguration : App
         withUrl("/echo", {
             method = HttpMethod.Post
             header(HttpHeaders.ContentType, ContentType.Text.Plain.toString())
-            body = OutputStreamBody {
+            body = ByteWriteChannelBody {
                 it.bufferedWriter().use { out ->
                     out.append("POST test\n")
                     out.append("Another line")
@@ -559,7 +558,7 @@ abstract class EngineTestSuite<TEngine : ApplicationEngine, TConfiguration : App
         withUrl("/", {
             method = HttpMethod.Post
             header(HttpHeaders.ContentType, ContentType.Text.Plain.toString())
-            body = OutputStreamBody {
+            body = ByteWriteChannelBody {
                 it.bufferedWriter().use {
                     it.append("POST content")
                 }
@@ -594,7 +593,7 @@ abstract class EngineTestSuite<TEngine : ApplicationEngine, TConfiguration : App
             method = HttpMethod.Post
             header(HttpHeaders.ContentType, ContentType.MultiPart.FormData.withParameter("boundary", "***bbb***").toString())
 
-            body = OutputStreamBody {
+            body = ByteWriteChannelBody {
                 it.bufferedWriter(Charsets.ISO_8859_1).use { out ->
                     out.apply {
                         append("--***bbb***\r\n")
@@ -723,7 +722,7 @@ abstract class EngineTestSuite<TEngine : ApplicationEngine, TConfiguration : App
         withUrl("/", {
             method = HttpMethod.Post
             header(HttpHeaders.ContentType, ContentType.Text.Plain.toString())
-            body = OutputStreamBody {
+            body = ByteWriteChannelBody {
                 it.write("Hello".toByteArray())
             }
         }) {
@@ -759,7 +758,7 @@ abstract class EngineTestSuite<TEngine : ApplicationEngine, TConfiguration : App
         withUrl("/", {
             method = HttpMethod.Post
             header(HttpHeaders.ContentType, ContentType.Text.Plain.toString())
-            body = OutputStreamBody {
+            body = ByteWriteChannelBody {
                 it.write("Hello".toByteArray())
             }
         }) {
