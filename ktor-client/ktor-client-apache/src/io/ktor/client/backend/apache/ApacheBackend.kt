@@ -7,7 +7,9 @@ import io.ktor.client.response.*
 import io.ktor.client.utils.*
 import io.ktor.http.*
 import io.ktor.http.HttpHeaders
+import io.ktor.network.util.*
 import io.ktor.util.*
+import kotlinx.coroutines.experimental.io.*
 import org.apache.http.HttpResponse
 import org.apache.http.client.config.*
 import org.apache.http.client.methods.*
@@ -97,14 +99,13 @@ class ApacheBackend(sslContext: SSLContext?) : HttpClientBackend {
 
         val body = request.body
         when (body) {
-            is InputStreamBody -> InputStreamEntity(body.stream)
-            is OutputStreamBody -> {
-                val stream = ByteArrayOutputStream()
-                body.block(stream)
-                ByteArrayEntity(stream.toByteArray())
-            }
+            is ByteReadChannelBody -> body.channel
+            is ByteWriteChannelBody -> writer(ioCoroutineDispatcher, ByteChannel()) {
+                body.block(channel)
+                channel.close()
+            }.channel
             else -> null
-        }?.let { builder.entity = it }
+        }?.let { builder.entity = InputStreamEntity(it.toInputStream()) }
 
         builder.config = RequestConfig.custom()
                 .setRedirectsEnabled(request.followRedirects)
@@ -141,7 +142,7 @@ class ApacheBackend(sslContext: SSLContext?) : HttpClientBackend {
             body = if (entity?.isStreaming == true) {
                 val stream = entity.content
                 origin = Closeable { stream.close() }
-                InputStreamBody(stream)
+                ByteReadChannelBody(stream.toByteReadChannel())
             } else EmptyBody
         }
 
