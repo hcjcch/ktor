@@ -146,9 +146,8 @@ abstract class EngineTestSuite<TEngine : ApplicationEngine, TConfiguration : App
             method = HttpMethod.Post
             header(HttpHeaders.ContentType, ContentType.Application.FormUrlEncoded.toString())
             body = ByteWriteChannelBody {
-                it.bufferedWriter().use {
-                    valuesOf("a" to listOf("1")).formUrlEncodeTo(it)
-                }
+                val content = valuesOf("a" to listOf("1")).formUrlEncode()
+                it.write(content)
             }
         }) {
             assertEquals(200, status.value)
@@ -505,7 +504,7 @@ abstract class EngineTestSuite<TEngine : ApplicationEngine, TConfiguration : App
             method = HttpMethod.Post
             header(HttpHeaders.ContentType, ContentType.Application.FormUrlEncoded.toString())
             body = ByteWriteChannelBody {
-                it.write("formp=2".toByteArray())
+                it.writeFully("formp=2".toByteArray())
             }
         }) {
             assertEquals(HttpStatusCode.OK.value, status.value)
@@ -723,7 +722,7 @@ abstract class EngineTestSuite<TEngine : ApplicationEngine, TConfiguration : App
             method = HttpMethod.Post
             header(HttpHeaders.ContentType, ContentType.Text.Plain.toString())
             body = ByteWriteChannelBody {
-                it.write("Hello".toByteArray())
+                it.writeFully("Hello".toByteArray())
             }
         }) {
             assertEquals(200, status.value)
@@ -759,7 +758,7 @@ abstract class EngineTestSuite<TEngine : ApplicationEngine, TConfiguration : App
             method = HttpMethod.Post
             header(HttpHeaders.ContentType, ContentType.Text.Plain.toString())
             body = ByteWriteChannelBody {
-                it.write("Hello".toByteArray())
+                it.writeFully("Hello".toByteArray())
             }
         }) {
             assertEquals(200, status.value)
