@@ -1,6 +1,5 @@
 package io.ktor.client.utils
 
-import io.ktor.client.response.*
 import io.ktor.http.*
 import io.ktor.util.*
 import java.nio.charset.*
@@ -34,6 +33,7 @@ fun HttpMessageBuilder.lastModified(): Date? = headers[HttpHeaders.LastModified]
 fun HttpMessageBuilder.etag(): String? = headers[HttpHeaders.ETag]
 fun HttpMessageBuilder.expires(): Date? = headers[HttpHeaders.Expires]?.let { parseHttpDate(it) }
 fun HttpMessageBuilder.vary(): List<String>? = headers[HttpHeaders.Vary]?.split(",")?.map { it.trim() }
+fun HttpMessageBuilder.contentLength(): Int? = headers[HttpHeaders.ContentLength]?.toInt()
 
 fun HttpMessage.contentType(): ContentType? = headers[HttpHeaders.ContentType]?.let { ContentType.parse(it) }
 fun HttpMessage.charset(): Charset? = contentType()?.charset()
