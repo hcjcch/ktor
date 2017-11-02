@@ -7,9 +7,7 @@ import io.ktor.client.response.*
 import io.ktor.client.utils.*
 import io.ktor.http.*
 import io.ktor.http.HttpHeaders
-import io.ktor.network.util.*
 import io.ktor.util.*
-import kotlinx.coroutines.experimental.io.*
 import org.apache.http.HttpResponse
 import org.apache.http.client.config.*
 import org.apache.http.client.methods.*
@@ -97,15 +95,14 @@ class ApacheBackend(sslContext: SSLContext?) : HttpClientBackend {
             values.forEach { value -> builder.addHeader(name, value) }
         }
 
-        val body = request.body
-        when (body) {
-            is ByteReadChannelBody -> body.channel
-            is ByteWriteChannelBody -> writer(ioCoroutineDispatcher, ByteChannel()) {
-                body.block(channel)
-                channel.close()
-            }.channel
-            else -> null
-        }?.let { builder.entity = InputStreamEntity(it.toInputStream()) }
+        val body = request.body as HttpMessageBody
+        val length = request.contentLength() ?: -1
+        val chunked = request.headers[HttpHeaders.TransferEncoding] == "chunked"
+
+        if (body !is EmptyBody) {
+            val bodyStream = body.toByteReadChannel().toInputStream()
+            builder.entity = InputStreamEntity(bodyStream, length.toLong()).apply { isChunked = chunked }
+        }
 
         builder.config = RequestConfig.custom()
                 .setRedirectsEnabled(request.followRedirects)

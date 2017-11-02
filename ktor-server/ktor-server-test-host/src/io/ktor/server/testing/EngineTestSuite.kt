@@ -145,10 +145,7 @@ abstract class EngineTestSuite<TEngine : ApplicationEngine, TConfiguration : App
         withUrl("/", {
             method = HttpMethod.Post
             header(HttpHeaders.ContentType, ContentType.Application.FormUrlEncoded.toString())
-            body = ByteWriteChannelBody {
-                val content = valuesOf("a" to listOf("1")).formUrlEncode()
-                it.write(content)
-            }
+            body = valuesOf("a" to listOf("1")).formUrlEncode()
         }) {
             assertEquals(200, status.value)
             assertEquals("a=1", readText())
@@ -756,10 +753,7 @@ abstract class EngineTestSuite<TEngine : ApplicationEngine, TConfiguration : App
 
         withUrl("/", {
             method = HttpMethod.Post
-            header(HttpHeaders.ContentType, ContentType.Text.Plain.toString())
-            body = ByteWriteChannelBody {
-                it.writeFully("Hello".toByteArray())
-            }
+            body = "Hello"
         }) {
             assertEquals(200, status.value)
             assertEquals("Hello", readText())

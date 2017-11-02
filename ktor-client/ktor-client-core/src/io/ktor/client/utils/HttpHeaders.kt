@@ -21,6 +21,7 @@ private fun parseHttpDate(date: String): Date = HTTP_DATE_FORMAT.parse(date)
 private fun formatHttpDate(date: Date): String = HTTP_DATE_FORMAT.format(date)
 
 fun HttpMessageBuilder.contentType(type: ContentType) = headers.set(HttpHeaders.ContentType, type.toString())
+fun HttpMessageBuilder.contentLength(length: Int) = headers.set(HttpHeaders.ContentLength, length.toString())
 fun HttpMessageBuilder.charset(charset: Charset) = contentType()?.let { contentType(it.withCharset(charset)) }
 fun HttpMessageBuilder.maxAge(seconds: Int) = headers.append(HttpHeaders.CacheControl, "max-age:$seconds")
 fun HttpMessageBuilder.ifModifiedSince(date: Date) = headers.set(HttpHeaders.IfModifiedSince, formatHttpDate(date))

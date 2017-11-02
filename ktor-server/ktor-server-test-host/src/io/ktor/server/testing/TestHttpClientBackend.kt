@@ -38,9 +38,12 @@ class TestHttpClientBackend(val app: TestApplicationEngine) : HttpClientBackend 
 
         headers.appendAll(call.response.headers.allValues())
         body = call.response.byteContent?.let {
-            writer(ioCoroutineDispatcher) {
-                channel.writeFully(it)
-            }
+            ByteReadChannelBody(
+                    writer(ioCoroutineDispatcher) {
+                        channel.writeFully(it)
+                        channel.close()
+                    }.channel
+            )
         } ?: EmptyBody
     }
 

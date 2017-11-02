@@ -1,23 +1,32 @@
 package io.ktor.client.backend.jetty
 
-import io.ktor.cio.*
 import io.ktor.client.*
 import io.ktor.client.backend.*
 import io.ktor.client.request.*
 import io.ktor.client.response.*
 import io.ktor.client.utils.*
+import io.ktor.network.util.*
 import io.ktor.util.*
+import kotlinx.coroutines.experimental.*
+import kotlinx.coroutines.experimental.io.*
+import kotlinx.io.pool.*
 import org.eclipse.jetty.http.*
 import org.eclipse.jetty.http2.api.*
 import org.eclipse.jetty.http2.client.*
 import org.eclipse.jetty.http2.frames.*
 import org.eclipse.jetty.util.ssl.*
-import java.io.*
 import java.net.*
 import java.util.*
 
+private val DEFAULT_RESPONSE_SIZE = 8192
+private val DEFAULT_RESPONSE_POOL_SIZE = 8192
+
 class JettyHttp2Backend : HttpClientBackend {
     private val sslContextFactory = SslContextFactory(true)
+
+    private val responsePool = object : DefaultPool<ByteBuffer>(DEFAULT_RESPONSE_POOL_SIZE) {
+        override fun produceInstance(): ByteBuffer = ByteBuffer.allocate(DEFAULT_RESPONSE_SIZE)!!
+    }
 
     private val jettyClient = HTTP2Client().apply {
         addBean(sslContextFactory)
@@ -35,28 +44,42 @@ class JettyHttp2Backend : HttpClientBackend {
 
         val headersFrame = prepareHeadersFrame(request)
 
-        val responseChannel = Http2ResponseChannel()
-        val requestStream = withPromise<Stream> { promise ->
-            session.newStream(headersFrame, promise, responseChannel.listener)
-        }.let { Http2OutputStream(it) }
+        val response = Http2ResponseChannel()
+        val requestChannel = withPromise<Stream> { promise ->
+            session.newStream(headersFrame, promise, response.listener)
+        }.let { Http2Request(it) }
 
-        sendRequestBody(requestStream, request.body)
+        sendRequestBody(requestChannel, request.body)
 
         val result = HttpResponseBuilder()
-        responseChannel.awaitHeaders().let {
+        response.awaitHeaders().let {
             result.status = it.statusCode
             result.headers.appendAll(it.headers)
         }
+
+        val bodyChannel = writer(ioCoroutineDispatcher) {
+            val buffer = responsePool.borrow()
+            while (true) {
+                buffer.clear()
+                val count = response.read(buffer)
+                if (count < 0) break
+
+                buffer.flip()
+                channel.writeFully(buffer)
+            }
+
+            responsePool.recycle(buffer)
+            channel.close()
+        }.channel
 
         with(result) {
             this.requestTime = requestTime
             responseTime = Date()
 
             version = HttpProtocolVersion.HTTP_2_0
-            body = InputStreamBody(responseChannel.toInputStream())
-            origin = responseChannel
+            body = ByteReadChannelBody(bodyChannel)
+            origin = response
         }
-
 
         return result
     }
@@ -87,21 +110,18 @@ class JettyHttp2Backend : HttpClientBackend {
         return HeadersFrame(meta, null, request.body is EmptyBody)
     }
 
-    private suspend fun sendRequestBody(requestStream: Http2OutputStream, body: Any) {
+    private suspend fun sendRequestBody(requestChannel: Http2Request, body: Any) {
         if (body is Unit || body is EmptyBody) return
         if (body !is HttpMessageBody) error("Wrong payload type: $body, expected HttpMessageBody")
 
-        when (body) {
-            is OutputStreamBody -> requestStream.apply(body.block).flush()
-            is InputStreamBody -> {
-                val reader = InputStreamReader(body.stream)
-                val writer = OutputStreamWriter(requestStream)
-                reader.copyTo(writer)
-                writer.flush()
+        val sourceChannel = body.toByteReadChannel()
+        launch(ioCoroutineDispatcher) {
+            while (!sourceChannel.isClosedForRead) {
+                sourceChannel.read { requestChannel.write(it) }
             }
-        }
 
-        requestStream.endBody()
+            requestChannel.endBody()
+        }
     }
 
     override fun close() {

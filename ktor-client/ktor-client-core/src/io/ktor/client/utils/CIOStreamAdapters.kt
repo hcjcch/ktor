@@ -11,9 +11,7 @@ private val DEFAULT_RESPONSE_POOL_SIZE = 1000
 internal val DEFAULT_RESPONSE_SIZE = 8192
 
 internal val ResponsePool = object : DefaultPool<ByteBuffer>(DEFAULT_RESPONSE_POOL_SIZE) {
-    override fun produceInstance(): ByteBuffer {
-        return ByteBuffer.allocate(DEFAULT_RESPONSE_SIZE)!!
-    }
+    override fun produceInstance(): ByteBuffer = ByteBuffer.allocate(DEFAULT_RESPONSE_SIZE)!!
 }
 
 fun InputStream.toByteReadChannel(): ByteReadChannel {
@@ -34,6 +32,7 @@ fun InputStream.toByteReadChannel(): ByteReadChannel {
             channel.writeFully(buffer.array(), buffer.arrayOffset() + buffer.position(), count)
         }
 
+        channel.close()
         ResponsePool.recycle(buffer)
     }.channel
 }
@@ -47,6 +46,7 @@ fun HttpMessageBody.toByteReadChannel(): ByteReadChannel {
         is ByteWriteChannelBody -> {
             writer(ioCoroutineDispatcher, ByteChannel()) {
                 block(channel)
+                channel.close()
             }.channel
         }
     }
@@ -62,12 +62,16 @@ internal class ByteReadChannelInputStream(private val channel: ByteReadChannel) 
     }
 }
 
-internal class ByteWriteChannelOutputStream(val channel: ByteWriteChannel) : OutputStream() {
+internal class ByteWriteChannelOutputStream(private val channel: ByteWriteChannel) : OutputStream() {
     override fun write(byte: Int) = runBlocking(Unconfined) {
         channel.writeByte(byte.toByte())
     }
 
     override fun write(byteArray: ByteArray, offset: Int, length: Int) = runBlocking(Unconfined) {
         channel.writeFully(byteArray, offset, length)
+    }
+
+    override fun close() {
+        channel.close()
     }
 }

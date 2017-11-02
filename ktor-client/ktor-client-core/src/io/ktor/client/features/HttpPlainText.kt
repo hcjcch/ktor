@@ -37,6 +37,7 @@ class HttpPlainText(private val defaultCharset: Charset) {
 
         val writer = writer(ioCoroutineDispatcher) {
             channel.writeFully(body)
+            channel.close()
         }
 
         return ByteReadChannelBody(writer.channel)
